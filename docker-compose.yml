@@ -1,0 +1,64 @@
+version: '3'
+services:
+  setup:
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=rails-kube-demo_production
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=mysecurepass
+      - RAILS_ENV=production
+    command: "bin/rails db:migrate"
+  postgres:
+    image: postgres:9.6-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=mysecurepass
+      - POSTGRES_DB=rails-kube-demo_production
+      - PGDATA=/var/lib/postgresql/data
+  db_data:
+    image: postgres:9.6-alpine
+    volumes:
+      - /var/lib/postgresql/data
+    command: /bin/true
+  sidekiq:
+    build:  .
+    command: "bin/bundle exec sidekiq -C config/sidekiq.yml"
+    environment:
+      - REDIS_URL=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=rails-kube-demo_production
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=mysecurepass
+    depends_on:
+      - redis
+  redis:
+    image: redis:3.2-alpine
+    ports:
+      - "6379:6379"
+  web:
+    build: . 
+    command: "bin/bundle exec rails s -p 3000 -b 0.0.0.0"
+    depends_on:
+      - redis
+      - postgres
+      - setup
+    environment:
+      - RAILS_ENV=development
+      - REDIS_URL=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=rails-kube-demo_production
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=mysecurepass
+    volumes:
+      - .:/myapp
+    ports:
+      - "3000:3000"
